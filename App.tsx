@@ -1,117 +1,118 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
   View,
+  Button,
+  NativeModules,
+  Alert,
+  Text,
+  StyleSheet,
 } from 'react-native';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
-
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
+interface PipSupport {
+  isSupported: boolean;
+  deviceInfo: {
+    model: string;
+    systemName: string;
+    systemVersion: string;
+    isSimulator: string;
+  };
 }
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+interface PIPManagerInterface {
+  checkPiPSupport(): Promise<PipSupport>;
+  configurePiP(): Promise<void>;
+  startPiP(): Promise<void>;
+  stopPiP(): Promise<void>;
+}
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+const {PIPManager} = NativeModules as {PIPManager: PIPManagerInterface};
+
+const App: React.FC = () => {
+  const [isConfigured, setIsConfigured] = useState<boolean>(false);
+  const [pipSupport, setPipSupport] = useState<PipSupport | null>(null);
+
+  useEffect(() => {
+    PIPManager.checkPiPSupport()
+      .then((result: PipSupport) => {
+        console.log('PiP support:', result);
+        setPipSupport(result);
+        if (result.isSupported) {
+          return PIPManager.configurePiP();
+        } else {
+          throw new Error('PiP is not supported on this device');
+        }
+      })
+      .then(() => {
+        console.log('PiP configured successfully');
+        setIsConfigured(true);
+      })
+      .catch((error: Error) => {
+        console.error('PiP setup failed:', error);
+        Alert.alert('Error', error.message);
+      });
+  }, []);
+
+  const startPiP = () => {
+    if (!isConfigured) {
+      Alert.alert('Error', 'PiP is not configured yet');
+      return;
+    }
+    PIPManager.startPiP()
+      .then(() => console.log('PiP started successfully'))
+      .catch((error: Error) => {
+        console.error('Failed to start PiP:', error);
+        Alert.alert('Error', 'Failed to start PiP');
+      });
+  };
+
+  const stopPiP = () => {
+    PIPManager.stopPiP()
+      .then(() => console.log('PiP stopped successfully'))
+      .catch((error: Error) => {
+        console.error('Failed to stop PiP:', error);
+        Alert.alert('Error', 'Failed to stop PiP');
+      });
   };
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
+    <View style={styles.container}>
+      {pipSupport && (
+        <View style={styles.infoContainer}>
+          <Text style={styles.infoText}>
+            PiP Support: {pipSupport.isSupported ? 'Yes' : 'No'}
+          </Text>
+          <Text style={styles.infoText}>
+            Device: {pipSupport.deviceInfo.model}
+          </Text>
+          <Text style={styles.infoText}>
+            OS: {pipSupport.deviceInfo.systemName}{' '}
+            {pipSupport.deviceInfo.systemVersion}
+          </Text>
+          <Text style={styles.infoText}>
+            Simulator: {pipSupport.deviceInfo.isSimulator}
+          </Text>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      )}
+      <Button title="Start PiP" onPress={startPiP} disabled={!isConfigured} />
+      <Button title="Stop PiP" onPress={stopPiP} disabled={!isConfigured} />
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
+  infoContainer: {
+    marginBottom: 20,
+    alignItems: 'flex-start',
   },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
+  infoText: {
+    fontSize: 16,
+    marginBottom: 5,
   },
 });
 
